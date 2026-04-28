@@ -23,16 +23,20 @@ app = FastAPI(
 )
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
-# Always allow local dev servers.
-# In production, set FRONTEND_ORIGINS env var in the Render dashboard as a
-# comma-separated list of allowed origins, e.g.:
-#   https://hack2-skill-github-io.vercel.app,https://your-custom-domain.com
+# Hardcoded known production origins (no env var required).
+# Also reads FRONTEND_ORIGINS from Render env as a comma-separated list for
+# any additional domains: e.g. https://your-custom-domain.com
 _allowed_origins = [
+    # Local development
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    # Production Vercel deployment
+    "https://hack2-skill-github-io.vercel.app",
+    # Render backend self-reference (for Swagger UI)
+    "https://hack2skill-github-io.onrender.com",
 ]
 
-# Support both FRONTEND_ORIGIN (single) and FRONTEND_ORIGINS (comma-separated list)
+# Any extra origins from the Render dashboard env var (comma-separated)
 _extra_origins = os.getenv("FRONTEND_ORIGINS", os.getenv("FRONTEND_ORIGIN", "")).strip()
 if _extra_origins:
     for _origin in _extra_origins.split(","):
@@ -47,6 +51,8 @@ if os.getenv("ALLOW_ALL_ORIGINS", "").lower() == "true":
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    # Also allow any *.vercel.app preview deployment URL via regex
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
