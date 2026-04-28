@@ -3,8 +3,8 @@
  * Routes, fleet, disruptions all rendered via Google Maps overlays.
  */
 import { useRef, useState, useCallback } from 'react';
-import { GoogleMap, Polyline, Circle, Marker, InfoWindow } from '@react-google-maps/api';
-import { useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, Polyline, Circle, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
+import type { Library } from '@react-google-maps/api';
 import { useStore } from '../../store/supplyChainStore';
 import type { Route, Vehicle } from '../../store/supplyChainStore';
 import './LiveMapView.css';
@@ -78,8 +78,7 @@ function vehicleIconSvg(v: Vehicle, google: any) {
 }
 
 // ─── Google Maps libraries (keep as constant to avoid recreation)
-type GoogleLibrary = 'places' | 'visualization' | 'drawing' | 'geometry' | 'localContext';
-const LIBRARIES: GoogleLibrary[] = ['places', 'visualization'];
+const LIBRARIES: Library[] = ['places', 'visualization'];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function LiveMapView() {

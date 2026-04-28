@@ -1,5 +1,5 @@
 import { useStore } from '../store/supplyChainStore';
-import { AlertTriangle, TrendingUp, TrendingDown, Minus, Shield } from 'lucide-react';
+import { AlertTriangle, Shield } from 'lucide-react';
 import './RiskPage.css';
 
 
