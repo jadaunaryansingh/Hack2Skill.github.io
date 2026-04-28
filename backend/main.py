@@ -24,15 +24,25 @@ app = FastAPI(
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 # Always allow local dev servers.
-# In production, add your Vercel frontend URL via the FRONTEND_ORIGIN env var
-# (e.g. https://your-app.vercel.app) set in the Render dashboard.
+# In production, set FRONTEND_ORIGINS env var in the Render dashboard as a
+# comma-separated list of allowed origins, e.g.:
+#   https://hack2-skill-github-io.vercel.app,https://your-custom-domain.com
 _allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
-_frontend_origin = os.getenv("FRONTEND_ORIGIN", "").strip()
-if _frontend_origin:
-    _allowed_origins.append(_frontend_origin)
+
+# Support both FRONTEND_ORIGIN (single) and FRONTEND_ORIGINS (comma-separated list)
+_extra_origins = os.getenv("FRONTEND_ORIGINS", os.getenv("FRONTEND_ORIGIN", "")).strip()
+if _extra_origins:
+    for _origin in _extra_origins.split(","):
+        _origin = _origin.strip()
+        if _origin and _origin not in _allowed_origins:
+            _allowed_origins.append(_origin)
+
+# If ALLOW_ALL_ORIGINS=true is set (useful for debugging), allow everything.
+if os.getenv("ALLOW_ALL_ORIGINS", "").lower() == "true":
+    _allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
