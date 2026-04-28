@@ -1,110 +1,141 @@
-import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+/**
+ * LiveMapView — Google Maps with Satellite View
+ * Routes, fleet, disruptions all rendered via Google Maps overlays.
+ */
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { GoogleMap, Polyline, Circle, Marker, InfoWindow } from '@react-google-maps/api';
+import { useJsApiLoader } from '@react-google-maps/api';
 import { useStore } from '../../store/supplyChainStore';
 import type { Route, Vehicle } from '../../store/supplyChainStore';
 import './LiveMapView.css';
 
-// ─── Dark map tile (CartoDB Dark Matter) ─────────────────────────────────────
-const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const DARK_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
+// ─── City Hubs ────────────────────────────────────────────────────────────────
+const CITIES = [
+  { id: 'DEL', name: 'Delhi',     lat: 28.6139, lng: 77.2090, tier: 1 },
+  { id: 'MUM', name: 'Mumbai',    lat: 19.0760, lng: 72.8777, tier: 1 },
+  { id: 'BLR', name: 'Bengaluru', lat: 12.9716, lng: 77.5946, tier: 1 },
+  { id: 'CHN', name: 'Chennai',   lat: 13.0827, lng: 80.2707, tier: 1 },
+  { id: 'KOL', name: 'Kolkata',   lat: 22.5726, lng: 88.3639, tier: 1 },
+  { id: 'HYD', name: 'Hyderabad', lat: 17.3850, lng: 78.4867, tier: 2 },
+  { id: 'PUN', name: 'Pune',      lat: 18.5204, lng: 73.8567, tier: 2 },
+  { id: 'AHM', name: 'Ahmedabad', lat: 23.0225, lng: 72.5714, tier: 2 },
+  { id: 'JAI', name: 'Jaipur',    lat: 26.9124, lng: 75.7873, tier: 2 },
+  { id: 'LKO', name: 'Lucknow',   lat: 26.8467, lng: 80.9462, tier: 2 },
+  { id: 'SUR', name: 'Surat',     lat: 21.1702, lng: 72.8311, tier: 3 },
+  { id: 'KOC', name: 'Kochi',     lat:  9.9312, lng: 76.2673, tier: 3 },
+];
 
-// Center on India
-const INDIA_CENTER: [number, number] = [22.5, 80.5];
-
-// ─── Custom SVG truck icon ────────────────────────────────────────────────────
-function makeTruckIcon(color: string, heading: number) {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-      <g transform="rotate(${heading}, 14, 14)">
-        <circle cx="14" cy="14" r="12" fill="${color}22" stroke="${color}" stroke-width="1.5"/>
-        <polygon points="14,6 20,20 14,16 8,20" fill="${color}"/>
-      </g>
-    </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: 'truck-marker-icon',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-}
-
-// ─── City hub icon ────────────────────────────────────────────────────────────
-function makeCityIcon(tier: number) {
-  const size = tier === 1 ? 12 : tier === 2 ? 9 : 7;
-  const color = tier === 1 ? '#00D4FF' : tier === 2 ? '#A855F7' : '#FFE500';
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size*3}" height="${size*3}" viewBox="0 0 ${size*3} ${size*3}">
-      <circle cx="${size*1.5}" cy="${size*1.5}" r="${size}" fill="${color}33" stroke="${color}" stroke-width="1.5"/>
-      <circle cx="${size*1.5}" cy="${size*1.5}" r="${size*0.4}" fill="${color}"/>
-    </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: '',
-    iconSize: [size*3, size*3],
-    iconAnchor: [size*1.5, size*1.5],
-  });
-}
-
-// ─── Auto-fit map bounds ──────────────────────────────────────────────────────
-function MapController() {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(INDIA_CENTER, 5);
-  }, [map]);
-  return null;
-}
-
-// ─── Route color logic ────────────────────────────────────────────────────────
+// ─── Color helpers ────────────────────────────────────────────────────────────
 function routeColor(r: Route) {
-  if (r.is_disrupted)          return '#FF3366';
-  if (r.risk_score > 50)       return '#FF8C00';
-  if (r.composite_score > 75)  return '#00FF88';
+  if (r.is_disrupted)         return '#FF3366';
+  if (r.risk_score > 50)      return '#FF8C00';
+  if (r.composite_score > 80) return '#00FF88';
   return '#00D4FF';
 }
 
-function routeWeight(r: Route) {
-  return r.composite_score > 80 ? 3 : 2;
+function vehicleColor(v: Vehicle) {
+  return v.status === 'ON_TIME'  ? '#00FF88'
+       : v.status === 'DELAYED'  ? '#FF8C00'
+       : v.status === 'REROUTED' ? '#A855F7'
+       : '#888888';
 }
 
-// ─── Main Map Component ───────────────────────────────────────────────────────
+// ─── SVG city dot marker icon (Data URL for Google Maps) ──────────────────────
+function cityIconSvg(tier: number, google: any) {
+  const size  = tier === 1 ? 14 : tier === 2 ? 10 : 8;
+  const color = tier === 1 ? '#00D4FF' : tier === 2 ? '#A855F7' : '#FFE500';
+  const svgStr = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size+8}" height="${size+8}">
+      <circle cx="${(size+8)/2}" cy="${(size+8)/2}" r="${size/2+2}"
+        fill="${color}22" stroke="${color}" stroke-width="1.5"/>
+      <circle cx="${(size+8)/2}" cy="${(size+8)/2}" r="${size/2}"
+        fill="${color}" opacity="0.9"/>
+    </svg>`;
+  const dataUrl = `data:image/svg+xml;base64,${btoa(svgStr)}`;
+  return {
+    url: dataUrl,
+    scaledSize: new google.maps.Size(size + 8, size + 8),
+    anchor: new google.maps.Point((size + 8) / 2, (size + 8) / 2),
+  };
+}
+
+// ─── SVG vehicle arrow marker icon (Data URL for Google Maps) ────────────────
+function vehicleIconSvg(v: Vehicle, google: any) {
+  const color = vehicleColor(v);
+  const svgStr = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"
+         style="transform:rotate(${v.heading}deg);overflow:visible">
+      <polygon points="11,2 18,20 11,15 4,20"
+        fill="${color}" stroke="#fff" stroke-width="1.2" opacity="0.95"/>
+      <circle cx="11" cy="11" r="3" fill="${color}" opacity="0.4"/>
+    </svg>`;
+  const dataUrl = `data:image/svg+xml;base64,${btoa(svgStr)}`;
+  return {
+    url: dataUrl,
+    scaledSize: new google.maps.Size(22, 22),
+    anchor: new google.maps.Point(11, 11),
+  };
+}
+
+// ─── Google Maps libraries (keep as constant to avoid recreation)
+const LIBRARIES = ['places', 'visualization'] as const;
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function LiveMapView() {
   const { routes, fleet, selectedRouteId, setSelectedRoute } = useStore();
-  const [showFleet, setShowFleet] = useState(true);
-  const [showDisruptions, setShowDisruptions] = useState(true);
+
+  const mapRef = useRef<google.maps.Map | null>(null);
   const [mapFilter, setMapFilter] = useState<'all' | 'disrupted' | 'optimal'>('all');
+  const [showFleet, setShowFleet] = useState(true);
+  const [showDisrupt, setShowDisrupt] = useState(true);
+  const [selectedRoute, setSelectedRouteState] = useState<Route | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<{ type: 'city' | 'vehicle' | 'route'; data: any } | null>(null);
+  const [infoWindowPos, setInfoWindowPos] = useState<{ lat: number; lng: number } | null>(null);
 
-  // City data from routes
-  const cities = [
-    { id: 'DEL', name: 'Delhi',      lat: 28.6139, lng: 77.2090, tier: 1 },
-    { id: 'MUM', name: 'Mumbai',     lat: 19.0760, lng: 72.8777, tier: 1 },
-    { id: 'BLR', name: 'Bengaluru',  lat: 12.9716, lng: 77.5946, tier: 1 },
-    { id: 'CHN', name: 'Chennai',    lat: 13.0827, lng: 80.2707, tier: 1 },
-    { id: 'KOL', name: 'Kolkata',    lat: 22.5726, lng: 88.3639, tier: 1 },
-    { id: 'HYD', name: 'Hyderabad',  lat: 17.3850, lng: 78.4867, tier: 2 },
-    { id: 'PUN', name: 'Pune',       lat: 18.5204, lng: 73.8567, tier: 2 },
-    { id: 'AHM', name: 'Ahmedabad',  lat: 23.0225, lng: 72.5714, tier: 2 },
-    { id: 'JAI', name: 'Jaipur',     lat: 26.9124, lng: 75.7873, tier: 2 },
-    { id: 'LKO', name: 'Lucknow',    lat: 26.8467, lng: 80.9462, tier: 2 },
-    { id: 'SUR', name: 'Surat',      lat: 21.1702, lng: 72.8311, tier: 3 },
-    { id: 'KOC', name: 'Kochi',      lat:  9.9312, lng: 76.2673, tier: 3 },
-  ];
+  // Load Google Maps API
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    libraries: LIBRARIES,
+  });
 
-  const filteredRoutes = routes.filter(r => {
+  const handleMapLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+  }, []);
+
+  const mapOptions: google.maps.MapOptions = isLoaded ? {
+    zoom: 5,
+    center: { lat: 22.5, lng: 80.5 },
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
+    fullscreenControl: false,
+    streetViewControl: false,
+    rotateControl: true,
+    zoomControl: true,
+    zoomControlOptions: {
+      position: google.maps.ControlPosition.BOTTOM_RIGHT,
+    },
+    mapTypeControl: false,
+    disableDefaultUI: true,
+    gestureHandling: 'auto',
+  } : {};
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  if (!isLoaded) {
+    return (
+      <div className="map-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#00D4FF' }}>Loading Google Maps...</p>
+      </div>
+    );
+  }
+
+  const filtered = routes.filter(r => {
     if (mapFilter === 'disrupted') return r.is_disrupted;
     if (mapFilter === 'optimal')   return !r.is_disrupted && r.composite_score > 75;
     return true;
   });
 
-  const vehicleColor = (v: Vehicle) =>
-    v.status === 'ON_TIME'  ? '#00FF88' :
-    v.status === 'DELAYED'  ? '#FF8C00' :
-    v.status === 'REROUTED' ? '#A855F7' : '#888';
-
   return (
     <div className="map-wrapper">
-      {/* Map Controls */}
+      {/* Filter / toggle controls */}
       <div className="map-controls glass-card">
         <span className="map-ctrl-label">Filter:</span>
         {(['all', 'disrupted', 'optimal'] as const).map(f => (
@@ -117,17 +148,13 @@ export default function LiveMapView() {
           </button>
         ))}
         <div className="map-ctrl-divider" />
-        <button
-          className={`map-filter-btn ${showFleet ? 'active' : ''}`}
-          onClick={() => setShowFleet(v => !v)}
-        >🚚 Fleet</button>
-        <button
-          className={`map-filter-btn ${showDisruptions ? 'active' : ''}`}
-          onClick={() => setShowDisruptions(v => !v)}
-        >⚠️ Alerts</button>
+        <button className={`map-filter-btn ${showFleet ? 'active' : ''}`}
+                onClick={() => setShowFleet(v => !v)}>🚚 Fleet</button>
+        <button className={`map-filter-btn ${showDisrupt ? 'active' : ''}`}
+                onClick={() => setShowDisrupt(v => !v)}>⚠️ Alerts</button>
       </div>
 
-      {/* Map Legend */}
+      {/* Legend */}
       <div className="map-legend glass-card">
         <div className="legend-item"><span className="legend-dot" style={{ background: '#00FF88' }} />Optimal</div>
         <div className="legend-item"><span className="legend-dot" style={{ background: '#FF8C00' }} />At Risk</div>
@@ -135,7 +162,7 @@ export default function LiveMapView() {
         <div className="legend-item"><span className="legend-dot" style={{ background: '#00D4FF' }} />Normal</div>
       </div>
 
-      {/* Route Stats */}
+      {/* Live Stats */}
       <div className="map-stats glass-card">
         <div className="map-stat">
           <span className="map-stat-value" style={{ color: 'var(--neon-blue)' }}>{routes.length}</span>
@@ -153,147 +180,242 @@ export default function LiveMapView() {
         </div>
       </div>
 
-      <MapContainer
-        center={INDIA_CENTER}
-        zoom={5}
-        className="leaflet-map"
-        zoomControl={false}
+      {/* Google Map */}
+      <GoogleMap
+        mapContainerClassName="google-map"
+        options={mapOptions}
+        onLoad={handleMapLoad}
       >
-        <TileLayer url={DARK_TILE} attribution={DARK_ATTR} />
-        <MapController />
-
-        {/* Route Polylines */}
-        {filteredRoutes.map(route => {
-          const positions: [number, number][] = route.waypoints.map(w => [w.lat, w.lng]);
-          const color  = routeColor(route);
-          const weight = routeWeight(route);
-          const selected = route.id === selectedRouteId;
-
-          return (
-            <Polyline
-              key={route.id}
-              positions={positions}
-              pathOptions={{
-                color,
-                weight: selected ? weight + 2 : weight,
-                opacity: selected ? 1 : 0.7,
-                dashArray: route.is_disrupted ? '8, 6' : undefined,
-              }}
-              eventHandlers={{ click: () => setSelectedRoute(route.id === selectedRouteId ? null : route.id) }}
-            >
-              <Popup className="map-popup">
-                <div className="popup-content">
-                  <div className="popup-title">{route.name}</div>
-                  <div className="popup-row"><span>Risk Score</span><span style={{ color }}>{route.risk_score}/100</span></div>
-                  <div className="popup-row"><span>Traffic</span><span>{route.traffic_level}</span></div>
-                  <div className="popup-row"><span>ETA</span><span>{route.current_duration_h.toFixed(1)}h</span></div>
-                  <div className="popup-row"><span>Delay Prob.</span><span>{(route.delay_probability * 100).toFixed(0)}%</span></div>
-                </div>
-              </Popup>
-            </Polyline>
-          );
-        })}
-
-        {/* Disruption Pulsing Nodes */}
-        {showDisruptions && routes.filter(r => r.is_disrupted).map(route => {
-          const wp = route.waypoints[Math.floor(route.waypoints.length / 2)];
-          return (
-            <CircleMarker
-              key={`dis-${route.id}`}
-              center={[wp.lat, wp.lng]}
-              radius={14}
-              pathOptions={{ color: '#FF3366', fillColor: '#FF3366', fillOpacity: 0.2, weight: 2 }}
-            >
-              <Popup className="map-popup">
-                <div className="popup-content">
-                  <div className="popup-title" style={{ color: '#FF3366' }}>⚠️ Disruption</div>
-                  <div className="popup-text">{route.name}</div>
-                  <div className="popup-text">Risk: {route.risk_score}/100</div>
-                </div>
-              </Popup>
-            </CircleMarker>
-          );
-        })}
-
         {/* City Hub Markers */}
-        {cities.map(city => (
+        {isLoaded && CITIES.map(city => (
           <Marker
             key={city.id}
-            position={[city.lat, city.lng]}
-            icon={makeCityIcon(city.tier)}
+            position={{ lat: city.lat, lng: city.lng }}
+            icon={cityIconSvg(city.tier, window.google)}
+            title={city.name}
+            onClick={() => {
+              setSelectedMarker({ type: 'city', data: city });
+              setInfoWindowPos({ lat: city.lat, lng: city.lng });
+            }}
           >
-            <Popup className="map-popup">
-              <div className="popup-content">
-                <div className="popup-title">{city.name}</div>
-                <div className="popup-text">Tier {city.tier} Hub</div>
-              </div>
-            </Popup>
+            {selectedMarker?.type === 'city' && selectedMarker?.data?.id === city.id && infoWindowPos && (
+              <InfoWindow
+                position={infoWindowPos}
+                onCloseClick={() => {
+                  setSelectedMarker(null);
+                  setInfoWindowPos(null);
+                }}
+              >
+                <div className="info-window-content">
+                  <div className="info-window-title">{city.name}</div>
+                  <div className="info-window-row">
+                    <span>Hub Tier:</span>
+                    <span>Tier {city.tier}</span>
+                  </div>
+                </div>
+              </InfoWindow>
+            )}
           </Marker>
         ))}
 
-        {/* Fleet Vehicles */}
-        {showFleet && fleet.map(vehicle => (
+        {/* Route Polylines with Glow Effect */}
+        {filtered.map(route => {
+          const color = routeColor(route);
+          const isSel = route.id === selectedRouteId;
+          const path = route.waypoints.map(w => ({ lat: w.lat, lng: w.lng }));
+
+          return (
+            <div key={route.id}>
+              {/* Glow halo */}
+              <Polyline
+                path={path}
+                options={{
+                  strokeColor: color,
+                  strokeOpacity: 0.18,
+                  strokeWeight: isSel ? 22 : 14,
+                  clickable: false,
+                }}
+              />
+
+              {/* Main line */}
+              <Polyline
+                path={path}
+                options={{
+                  strokeColor: color,
+                  strokeOpacity: route.is_disrupted ? 0.9 : (isSel ? 1 : 0.85),
+                  strokeWeight: isSel ? 4 : 2.5,
+                  geodesic: true,
+                  icons: route.is_disrupted
+                    ? [
+                        {
+                          icon: {
+                            path: 'M 0,-1 0,1',
+                            strokeOpacity: 1,
+                            scale: 4,
+                          },
+                          offset: '0',
+                          repeat: '20px',
+                        },
+                      ]
+                    : undefined,
+                }}
+                onClick={() => {
+                  const newId = route.id === selectedRouteId ? null : route.id;
+                  setSelectedRoute(newId);
+                  setSelectedRouteState(newId ? route : null);
+                }}
+              />
+
+              {/* Disruption circles */}
+              {showDisrupt && route.is_disrupted && (
+                <>
+                  <Circle
+                    center={{
+                      lat: route.waypoints[Math.floor(route.waypoints.length / 2)].lat,
+                      lng: route.waypoints[Math.floor(route.waypoints.length / 2)].lng,
+                    }}
+                    radius={35000}
+                    options={{
+                      strokeColor: '#FF3366',
+                      strokeOpacity: 0.6,
+                      strokeWeight: 2,
+                      fillColor: '#FF3366',
+                      fillOpacity: 0.08,
+                      clickable: false,
+                    }}
+                  />
+                  <Circle
+                    center={{
+                      lat: route.waypoints[Math.floor(route.waypoints.length / 2)].lat,
+                      lng: route.waypoints[Math.floor(route.waypoints.length / 2)].lng,
+                    }}
+                    radius={18000}
+                    options={{
+                      strokeColor: '#FF3366',
+                      strokeOpacity: 0.9,
+                      strokeWeight: 1.5,
+                      fillColor: '#FF3366',
+                      fillOpacity: 0.15,
+                      clickable: false,
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Vehicle Markers */}
+        {isLoaded && showFleet && fleet.map(vehicle => (
           <Marker
             key={vehicle.id}
-            position={[vehicle.current_lat, vehicle.current_lng]}
-            icon={makeTruckIcon(vehicleColor(vehicle), vehicle.heading)}
+            position={{ lat: vehicle.current_lat, lng: vehicle.current_lng }}
+            icon={vehicleIconSvg(vehicle, window.google)}
+            title={vehicle.name}
+            onClick={() => {
+              setSelectedMarker({ type: 'vehicle', data: vehicle });
+              setInfoWindowPos({ lat: vehicle.current_lat, lng: vehicle.current_lng });
+            }}
           >
-            <Popup className="map-popup">
-              <div className="popup-content">
-                <div className="popup-title">{vehicle.name}</div>
-                <div className="popup-row"><span>Driver</span><span>{vehicle.driver}</span></div>
-                <div className="popup-row"><span>Speed</span><span>{vehicle.speed_kmh} km/h</span></div>
-                <div className="popup-row"><span>ETA</span><span>{vehicle.eta_minutes} min</span></div>
-                <div className="popup-row"><span>Status</span>
-                  <span style={{ color: vehicleColor(vehicle) }}>{vehicle.status}</span>
+            {selectedMarker?.type === 'vehicle' && selectedMarker?.data?.id === vehicle.id && infoWindowPos && (
+              <InfoWindow
+                position={infoWindowPos}
+                onCloseClick={() => {
+                  setSelectedMarker(null);
+                  setInfoWindowPos(null);
+                }}
+              >
+                <div className="info-window-content">
+                  <div className="info-window-title">{vehicle.name}</div>
+                  <div className="info-window-row">
+                    <span>Driver:</span>
+                    <span>{vehicle.driver}</span>
+                  </div>
+                  <div className="info-window-row">
+                    <span>Speed:</span>
+                    <span>{vehicle.speed_kmh} km/h</span>
+                  </div>
+                  <div className="info-window-row">
+                    <span>ETA:</span>
+                    <span>{vehicle.eta_minutes} min</span>
+                  </div>
+                  <div className="info-window-row">
+                    <span>Progress:</span>
+                    <span>{(vehicle.progress * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="info-window-row">
+                    <span>Status:</span>
+                    <span style={{ color: vehicleColor(vehicle), fontWeight: '700' }}>
+                      {vehicle.status}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Popup>
+              </InfoWindow>
+            )}
           </Marker>
         ))}
-      </MapContainer>
+      </GoogleMap>
 
       {/* Selected Route Detail Panel */}
-      {selectedRouteId && (() => {
-        const r = routes.find(rt => rt.id === selectedRouteId);
-        if (!r) return null;
-        return (
-          <div className="route-detail-panel glass-card">
-            <div className="rdp-header">
-              <span className="rdp-title">{r.name}</span>
-              <button className="rdp-close" onClick={() => setSelectedRoute(null)}>✕</button>
+      {selectedRoute && (
+        <div className="route-detail-panel glass-card">
+          <div className="rdp-header">
+            <span className="rdp-title">{selectedRoute.name}</span>
+            <button className="rdp-close"
+              onClick={() => { setSelectedRoute(null); setSelectedRouteState(null); }}>✕</button>
+          </div>
+          <div className="rdp-grid">
+            <div className="rdp-item">
+              <span className="rdp-label">Risk</span>
+              <span className="rdp-value" style={{
+                color: selectedRoute.risk_score > 65 ? 'var(--neon-red)'
+                     : selectedRoute.risk_score > 40 ? 'var(--neon-orange)'
+                     : 'var(--neon-green)'
+              }}>{selectedRoute.risk_score.toFixed(0)}/100</span>
             </div>
-            <div className="rdp-grid">
-              <div className="rdp-item">
-                <span className="rdp-label">Risk Score</span>
-                <span className="rdp-value" style={{ color: r.risk_score > 65 ? 'var(--neon-red)' : r.risk_score > 40 ? 'var(--neon-orange)' : 'var(--neon-green)' }}>
-                  {r.risk_score}/100
-                </span>
-              </div>
-              <div className="rdp-item">
-                <span className="rdp-label">Distance</span>
-                <span className="rdp-value">{r.distance_km} km</span>
-              </div>
-              <div className="rdp-item">
-                <span className="rdp-label">ETA</span>
-                <span className="rdp-value">{r.current_duration_h.toFixed(1)}h</span>
-              </div>
-              <div className="rdp-item">
-                <span className="rdp-label">Traffic</span>
-                <span className="rdp-value">{r.traffic_level}</span>
-              </div>
-              <div className="rdp-item">
-                <span className="rdp-label">Weather</span>
-                <span className="rdp-value">{r.weather_severity}</span>
-              </div>
-              <div className="rdp-item">
-                <span className="rdp-label">Efficiency</span>
-                <span className="rdp-value" style={{ color: 'var(--neon-green)' }}>{r.cost_efficiency}/100</span>
-              </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Distance</span>
+              <span className="rdp-value">{selectedRoute.distance_km} km</span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">ETA</span>
+              <span className="rdp-value">{selectedRoute.current_duration_h.toFixed(1)}h</span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Delay +</span>
+              <span className="rdp-value" style={{ color: 'var(--neon-orange)' }}>
+                {(selectedRoute.current_duration_h - selectedRoute.base_duration_h).toFixed(1)}h
+              </span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Traffic</span>
+              <span className="rdp-value">{selectedRoute.traffic_level}</span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Cost Eff.</span>
+              <span className="rdp-value" style={{ color: 'var(--neon-green)' }}>{selectedRoute.cost_efficiency.toFixed(0)}/100</span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Weather</span>
+              <span className="rdp-value">{selectedRoute.weather_severity}</span>
+            </div>
+            <div className="rdp-item">
+              <span className="rdp-label">Delay Prob.</span>
+              <span className="rdp-value">{(selectedRoute.delay_probability * 100).toFixed(0)}%</span>
             </div>
           </div>
-        );
-      })()}
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <span className={`badge ${selectedRoute.is_disrupted ? 'badge-red' : 'badge-green'}`}>
+              {selectedRoute.is_disrupted ? '⚠️ DISRUPTED' : '✅ ACTIVE'}
+            </span>
+            {selectedRoute.alternate_for && (
+              <span className="badge badge-purple" style={{ marginLeft: 6 }}>
+                🔀 REROUTED
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
