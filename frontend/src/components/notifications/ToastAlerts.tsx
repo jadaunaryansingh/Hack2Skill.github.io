@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '../../store/supplyChainStore';
-import { X, AlertTriangle, Info, Zap } from 'lucide-react';
+import { X, AlertTriangle, Info } from 'lucide-react';
 import './ToastAlerts.css';
 
 const ICONS: Record<string, any> = {

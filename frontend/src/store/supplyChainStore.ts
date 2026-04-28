@@ -13,6 +13,7 @@ export interface Route {
   risk_score: number; delay_probability: number; cost_efficiency: number;
   composite_score: number; traffic_level: string; weather_severity: string;
   is_active: boolean; is_disrupted: boolean;
+  alternate_for?: string | null;
 }
 
 export interface Vehicle {
@@ -75,7 +76,7 @@ interface SupplyChainStore {
   dismissToast:        (id: string) => void;
 }
 
-export const useStore = create<SupplyChainStore>((set, get) => ({
+export const useStore = create<SupplyChainStore>((set) => ({
   routes:      [],
   fleet:       [],
   shipments:   [],

@@ -130,7 +130,7 @@ export default function AnalyticsPage() {
         <div className="glass-card chart-card">
           <div className="chart-header">
             <span className="chart-title">Health Index Breakdown</span>
-            <span className="chart-unit" style={{ color: healthIndex?.score > 70 ? 'var(--neon-green)' : 'var(--neon-yellow)' }}>
+            <span className="chart-unit" style={{ color: (healthIndex?.score ?? 0) > 70 ? 'var(--neon-green)' : 'var(--neon-yellow)' }}>
               {healthIndex?.score.toFixed(0)}/100 — {healthIndex?.grade}
             </span>
           </div>

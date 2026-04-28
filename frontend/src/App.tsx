@@ -1,4 +1,4 @@
-import { } from 'react';
+import { type ReactElement } from 'react';
 import { useStore } from './store/supplyChainStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import Sidebar from './components/layout/Sidebar';
@@ -13,7 +13,7 @@ import AssistantPage from './pages/AssistantPage';
 import './styles/globals.css';
 import './App.css';
 
-const PAGE_MAP: Record<string, JSX.Element> = {
+const PAGE_MAP: Record<string, ReactElement> = {
   map:       <LiveMapView />,
   risk:      <RiskPage />,
   routes:    <RoutesPage />,

@@ -1,4 +1,4 @@
-# Logs
+# ── Logs ──────────────────────────────────────────────────────────────────────
 logs
 *.log
 npm-debug.log*
@@ -7,12 +7,30 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# ── Environment variables (NEVER commit real keys) ────────────────────────────
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── Editor directories and files ──────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea

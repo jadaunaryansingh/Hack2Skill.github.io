@@ -3,6 +3,7 @@ Smart Supply Chain Intelligence Platform — FastAPI Backend
 Entry point: uvicorn main:app --reload --port 8000
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,10 +21,21 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
-# ─── CORS — allow Vite dev server ─────────────────────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# Always allow local dev servers.
+# In production, add your Vercel frontend URL via the FRONTEND_ORIGIN env var
+# (e.g. https://your-app.vercel.app) set in the Render dashboard.
+_allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+_frontend_origin = os.getenv("FRONTEND_ORIGIN", "").strip()
+if _frontend_origin:
+    _allowed_origins.append(_frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

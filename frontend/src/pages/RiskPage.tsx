@@ -1,31 +1,7 @@
 import { useStore } from '../store/supplyChainStore';
-import { AlertTriangle, TrendingUp, TrendingDown, Minus, ChevronRight, Shield } from 'lucide-react';
+import { AlertTriangle, TrendingUp, TrendingDown, Minus, Shield } from 'lucide-react';
 import './RiskPage.css';
 
-function RiskBar({ label, value, weight, trend }: { label: string; value: number; weight: number; trend: string }) {
-  const color =
-    value > 70 ? 'var(--neon-red)'    :
-    value > 45 ? 'var(--neon-orange)' :
-    value > 25 ? 'var(--neon-yellow)' : 'var(--neon-green)';
-
-  const TrendIcon = trend === 'UP' ? TrendingUp : trend === 'DOWN' ? TrendingDown : Minus;
-
-  return (
-    <div className="risk-bar-row">
-      <div className="risk-bar-header">
-        <span className="risk-bar-label">{label}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <TrendIcon size={11} color={trend === 'UP' ? 'var(--neon-red)' : trend === 'DOWN' ? 'var(--neon-green)' : 'var(--text-muted)'} />
-          <span className="risk-bar-value" style={{ color }}>{value.toFixed(0)}</span>
-        </div>
-      </div>
-      <div className="progress-bar">
-        <div className="progress-fill" style={{ width: `${value}%`, background: color, boxShadow: `0 0 8px ${color}60` }} />
-      </div>
-      <span className="risk-bar-weight">weight: {(weight * 100).toFixed(0)}%</span>
-    </div>
-  );
-}
 
 export default function RiskPage() {
   const { routes, alerts } = useStore();
