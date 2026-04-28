@@ -4,7 +4,6 @@
  */
 import { useRef, useState, useCallback } from 'react';
 import { GoogleMap, Polyline, Circle, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
-import type { Library } from '@react-google-maps/api';
 import { useStore } from '../../store/supplyChainStore';
 import type { Route, Vehicle } from '../../store/supplyChainStore';
 import './LiveMapView.css';
@@ -78,7 +77,8 @@ function vehicleIconSvg(v: Vehicle, google: any) {
 }
 
 // ─── Google Maps libraries (keep as constant to avoid recreation)
-const LIBRARIES: Library[] = ['places', 'visualization'];
+type Libraries = NonNullable<Parameters<typeof useJsApiLoader>[0]['libraries']>;
+const LIBRARIES: Libraries = ['places', 'visualization'];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function LiveMapView() {
