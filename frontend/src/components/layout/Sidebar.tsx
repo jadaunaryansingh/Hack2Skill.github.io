@@ -1,7 +1,7 @@
 import { useStore } from '../../store/supplyChainStore';
 import {
   Map, AlertTriangle, Navigation2, Package,
-  BarChart2, Bot, Activity, Zap, TrendingUp
+  BarChart2, Bot, Activity, Zap, TrendingUp, Route
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: 'routes',    label: 'Route Optimizer', icon: Navigation2, color: 'yellow' },
   { id: 'shipments', label: 'Shipments',       icon: Package,     color: 'purple' },
   { id: 'analytics', label: 'Analytics',       icon: BarChart2,   color: 'green' },
+  { id: 'planner',   label: 'Route Planner',   icon: Route,       color: 'blue'  },
   { id: 'assistant', label: 'AI Assistant',    icon: Bot,         color: 'blue' },
 ];
 

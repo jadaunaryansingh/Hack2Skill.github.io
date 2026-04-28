@@ -9,6 +9,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   shipments: { title: 'Shipment Tracker',       subtitle: 'Priority-sorted delivery queue' },
   analytics: { title: 'Analytics Dashboard',   subtitle: 'Performance metrics & trends' },
   assistant: { title: 'AI Strategy Assistant', subtitle: 'Intelligent logistics advisor' },
+  planner:   { title: 'Smart Route Planner',   subtitle: 'AI-scored routes · disruption detection · dynamic rerouting' },
 };
 
 export default function TopBar() {

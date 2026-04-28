@@ -38,6 +38,12 @@ export const api = {
     request<any>('/api/assistant/query', { method: 'POST', body: JSON.stringify({ message, context }) }),
   getSuggestions:  () => request<any>('/api/assistant/suggestions'),
 
+  // AI Route Planner
+  planRoute:      (source: string, destination: string, priority: string) =>
+    request<any>('/api/plan-route', { method: 'POST', body: JSON.stringify({ source, destination, priority }) }),
+  reroute:        (route_id: string, disruption_type: string) =>
+    request<any>('/api/reroute',    { method: 'POST', body: JSON.stringify({ route_id, disruption_type }) }),
+
   // WebSocket
   wsUrl: WS_URL,
 };

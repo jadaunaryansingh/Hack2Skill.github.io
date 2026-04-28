@@ -12,6 +12,7 @@ from routes.analytics     import router as analytics_router
 from routes.risk          import router as risk_router
 from routes.assistant     import router as assistant_router
 from routes.websocket     import router as ws_router
+from routes.route_planner import router as planner_router
 
 app = FastAPI(
     title="Smart Supply Chain Intelligence Platform",
@@ -46,6 +47,7 @@ app.include_router(supply_router,   prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(risk_router,     prefix="/api")
 app.include_router(assistant_router, prefix="/api")
+app.include_router(planner_router,  prefix="/api")
 app.include_router(ws_router)       # WebSocket has no prefix — mounts at /ws/live
 
 

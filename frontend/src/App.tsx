@@ -10,6 +10,7 @@ import RoutesPage from './pages/RoutesPage';
 import ShipmentsPage from './pages/ShipmentsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import AssistantPage from './pages/AssistantPage';
+import RoutePlannerPage from './pages/RoutePlannerPage';
 import './styles/globals.css';
 import './App.css';
 
@@ -20,6 +21,7 @@ const PAGE_MAP: Record<string, ReactElement> = {
   shipments: <ShipmentsPage />,
   analytics: <AnalyticsPage />,
   assistant: <AssistantPage />,
+  planner:   <RoutePlannerPage />,
 };
 
 export default function App() {
