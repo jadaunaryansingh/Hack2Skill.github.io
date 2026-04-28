@@ -3,8 +3,10 @@
  * Base URL auto-detected from env or defaults to localhost:8000.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const WS_URL   = import.meta.env.VITE_WS_URL  || 'ws://localhost:8000/ws/live';
+// Falls back to the production Render backend when VITE_API_URL is not set.
+// For local development, set VITE_API_URL=http://localhost:8000 in frontend/.env
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://hack2skill-github-io.onrender.com';
+const WS_URL   = import.meta.env.VITE_WS_URL  || 'wss://hack2skill-github-io.onrender.com/ws/live';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
